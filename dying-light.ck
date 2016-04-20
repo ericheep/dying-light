@@ -7,7 +7,7 @@ HandshakeID talk;
 talk.talk.init();
 2.5::second => now;
 
-6 => int NUM_PUCKS;
+5 => int NUM_PUCKS;
 16 => int NUM_LEDS;
 
 // led class
@@ -37,18 +37,20 @@ int sinPhase[NUM_LINES];
 int blinkPhase[NUM_LINES];
 
 for (int i; i < NUM_LINES; i++) {
-    0 => linePhase[i];
+    1 => linePhase[i];
     0 => sinPhase[i];
-    1 => blinkPhase[i];
+    0 => blinkPhase[i];
 }
 
 // audio
-Gain gain;
+Gain gain[2];
 Analyze ana[2];
 for (0 => int i; i < 2; i++) {
-    adc.chan(i) => gain => dac;
+    adc.chan(i) => gain[i] => dac.chan(i);
     adc.chan(i) => ana[i];
 }
+
+0.80 => float low;
 
 fun int convert(float value, int scale) {
     return Std.clamp(Math.floor(value * scale) $ int, 0, scale);
@@ -61,7 +63,7 @@ fun void updateColors() {
             puck[i].color(j,
                         convert(0.85, 1023),  // hue
                         255,               // saturation
-                        convert(value[i][j] * 127, 255)  // value
+                        convert(value[i][j], 255)  // value
                         );
         }
     }
@@ -88,7 +90,12 @@ fun void circle(int which) {
                 (rowLength - 1) - rowLed => dirLed;
             }
 
-            1.0 => value[dirLed / shieldLength][matrix[which][dirLed % shieldLength]];
+            if (ana[which].decibel() > decibelThreshold) {
+                1.0 => value[dirLed / shieldLength][matrix[which][dirLed % shieldLength]];
+            }
+            else {
+                low => value[dirLed / shieldLength][matrix[which][dirLed % shieldLength]];
+            }
 
             baseSpeed * (Math.pow((-ledSpeed[which] + 1.0), 3) + 0.15) => now;
 
@@ -112,11 +119,21 @@ fun void circle(int which) {
 
             Math.floor(((Math.sin(sinInc) + 1.0) / 2.0) * rowLength)$int => rowLed;
 
-            1.0 => value[rowLed / shieldLength][matrix[which][rowLed % shieldLength]];
+            if (ana[which].decibel() > decibelThreshold) {
+                1.0 => value[rowLed / shieldLength][matrix[which][rowLed % shieldLength]];
+            }
+            else {
+                low => value[rowLed / shieldLength][matrix[which][rowLed % shieldLength]];
+            }
 
             for (0 => int i; i < width; i++) {
                 (rowLed + (i + 1)) % rowLength => modLed;
-                1.0 => value[modLed / shieldLength][matrix[which][modLed % shieldLength]];
+                if (ana[which].decibel() > decibelThreshold) {
+                    1.0 => value[modLed / shieldLength][matrix[which][modLed % shieldLength]];
+                }
+                else {
+                    low => value[modLed / shieldLength][matrix[which][modLed % shieldLength]];
+                }
             }
 
             baseSpeed * (Math.pow((-ledSpeed[which] + 1.0), 3) + 0.15) => now;
@@ -129,7 +146,12 @@ fun void circle(int which) {
             Math.random2(0, NUM_PUCKS - 1) => shield;
 
             for (0 => int i; i < shieldLength; i++) {
-                1.0 => value[shield][matrix[which][i]];
+                if (ana[which].decibel() > decibelThreshold) {
+                    1.0 => value[shield][matrix[which][i]];
+                }
+                else {
+                    low => value[shield][matrix[which][i]];
+                }
             }
 
             baseSpeed * (Math.pow((-ledSpeed[which] + 1.0), 3) + 0.15) => now;
@@ -152,26 +174,26 @@ fun void speed(int which) {
     while (true) {
         if (ana[which].decibel() > decibelThreshold) {
             if (linePhase[which]) {
-                ledSpeed[which] + 0.001 => ledSpeed[which];
+                ledSpeed[which] + 0.001/4 => ledSpeed[which];
             }
             if (sinPhase[which]) {
-                ledSpeed[which] + 0.001 => ledSpeed[which];
-                ledWidth[which] + 0.001 => ledWidth[which];
+                ledSpeed[which] + 0.001/4 => ledSpeed[which];
+                ledWidth[which] + 0.001/4 => ledWidth[which];
             }
             if (blinkPhase[which]) {
-                ledSpeed[which] - 0.0003 => ledSpeed[which];
+                ledSpeed[which] - 0.0003/4 => ledSpeed[which];
             }
         }
         else if (ana[which].decibel() <= decibelThreshold) {
             if (linePhase[which]) {
-                ledSpeed[which] - 0.0003 => ledSpeed[which];
+                ledSpeed[which] - 0.0003/4 => ledSpeed[which];
             }
             if (sinPhase[which]) {
-                ledSpeed[which] - 0.0003 => ledSpeed[which];
-                ledWidth[which] - 0.0003 => ledWidth[which];
+                ledSpeed[which] - 0.0003/4 => ledSpeed[which];
+                ledWidth[which] - 0.0003/4 => ledWidth[which];
             }
             if (blinkPhase[which]) {
-                ledSpeed[which] + 0.001 => ledSpeed[which];
+                ledSpeed[which] + 0.001/4 => ledSpeed[which];
             }
         }
 
